@@ -1,4 +1,4 @@
-# Copyright 2025 Enactic, Inc.
+# Copyright 2025-2026 Enactic, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ jobs:
             openarm_can-${VERSION}.tar.gz > \
             openarm_can-${VERSION}.tar.gz.sha512
           mv * ../../
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: source
           path: |
@@ -162,7 +162,7 @@ jobs:
           sudo apt install -y -V -o="APT::Acquire::Retries=3" \
             devscripts \
             ruby
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: source
       - name: Update version
@@ -187,7 +187,7 @@ jobs:
             # Remove SRPMs from non x86_64 artifacts
             rm -rf ${TASK_NAMESPACE}/repositories/*/*/source
           fi
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.id }}
           path: packages/${{ env.TASK_NAMESPACE }}/repositories/
@@ -214,7 +214,7 @@ jobs:
       contents: write
       discussions: write
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
       - name: Prepare package artifacts
         run: |
           set -x
@@ -254,6 +254,41 @@ jobs:
             --verify-tag \
             *.tar.gz \
             source/*
+      - uses: actions/checkout@v6
+        if: github.ref_type == 'tag'
+        with:
+          path: openarm_can
+      - uses: actions/checkout@v6
+        if: github.ref_type == 'tag'
+        with:
+          path: apache-arrow
+          repository: apache/arrow
+      - uses: actions/checkout@v6
+        if: github.ref_type == 'tag'
+        with:
+          path: groonga
+          repository: groonga/groonga
+      - name: Prepare for Launchpad publishing
+        if: github.ref_type == 'tag'
+        run: |
+          cp source/*.tar.gz openarm_can/
+          sudo apt update
+          sudo apt install -y \
+            build-essential \
+            debhelper \
+            devscripts \
+            dh-python
+      - name: Publish to Launchpad
+        if: github.ref_type == 'tag'
+        env:
+          APACHE_ARROW_REPOSITORY: ${{ github.workspace }}/apache-arrow
+          GROONGA_REPOSITORY: ${{ github.workspace }}/groonga
+          LAUNCHPAD_DEPLOY_KEY: ${{ secrets.LAUNCHPAD_DEPLOY_KEY }}
+          LAUNCHPAD_UPLOADER_PGP_KEY: "0x0D2FCD607041CDB69695F176934C5D4649C7E035"
+        run: |
+          echo "${LAUNCHPAD_DEPLOY_KEY}" | gpg --import
+          echo "trusted-key ${LAUNCHPAD_UPLOADER_PGP_KEY}" > ~/.gnupg/gpg.conf
+          rake -C openarm_can/packages ubuntu
   pypi:
     name: PyPI
     if: github.ref_type == 'tag'
@@ -265,7 +300,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: source
       - name: Prepare directory structure
